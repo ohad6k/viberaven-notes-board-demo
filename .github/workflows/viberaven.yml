@@ -11,4 +11,4 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: ohad6k/viberaven-action@footer-and-1612
+      - uses: ohad6k/viberaven-action@v1
