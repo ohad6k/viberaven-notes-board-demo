@@ -1,0 +1,71 @@
+# This workflow runs from the default branch. It never trusts the PR workflow artifact.
+# Recheck uses a read-only token and exports regular Git blobs without running repository scripts.
+name: VibeRaven feedback
+on:
+  workflow_run:
+    workflows: [VibeRaven]
+    types: [completed]
+permissions: {}
+concurrency:
+  group: viberaven-feedback-${{ github.repository_id }}-${{ github.event.workflow_run.head_repository.id }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+jobs:
+  recheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Install pinned VibeRaven outside the repository
+        working-directory: ${{ runner.temp }}
+        run: |
+          tool_dir=$(mktemp -d "$RUNNER_TEMP/viberaven-tool.XXXXXX")
+          cd "$tool_dir"
+          export NPM_CONFIG_USERCONFIG=/dev/null NPM_CONFIG_GLOBALCONFIG=/dev/null
+          npm install --ignore-scripts --no-audit --no-fund --package-lock=false --registry=https://registry.npmjs.org @viberaven/cli@1.7.8
+          echo "VR_HELPER=$tool_dir/node_modules/@viberaven/cli/dist/github-ci.js" >> "$GITHUB_ENV"
+      - name: Independently check immutable PR commits
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VR_REPORT_DIR: ${{ runner.temp }}/viberaven-report
+        run: node "$VR_HELPER" recheck
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: viberaven-validated-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/viberaven-report/report.json
+          if-no-files-found: error
+          retention-days: 1
+          archive: true
+  publish:
+    needs: recheck
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Install pinned VibeRaven outside the repository
+        working-directory: ${{ runner.temp }}
+        run: |
+          tool_dir=$(mktemp -d "$RUNNER_TEMP/viberaven-tool.XXXXXX")
+          cd "$tool_dir"
+          export NPM_CONFIG_USERCONFIG=/dev/null NPM_CONFIG_GLOBALCONFIG=/dev/null
+          npm install --ignore-scripts --no-audit --no-fund --package-lock=false --registry=https://registry.npmjs.org @viberaven/cli@1.7.8
+          echo "VR_HELPER=$tool_dir/node_modules/@viberaven/cli/dist/github-ci.js" >> "$GITHUB_ENV"
+      - name: Publish validated feedback
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node "$VR_HELPER" publish
