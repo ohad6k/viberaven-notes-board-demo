@@ -18,7 +18,9 @@ jobs:
         run: |
           tool_dir=$(mktemp -d "$RUNNER_TEMP/viberaven-tool.XXXXXX")
           cd "$tool_dir"
-          export NPM_CONFIG_USERCONFIG=/dev/null NPM_CONFIG_GLOBALCONFIG=/dev/null
+          : > "$tool_dir/user.npmrc"
+          : > "$tool_dir/global.npmrc"
+          export NPM_CONFIG_USERCONFIG="$tool_dir/user.npmrc" NPM_CONFIG_GLOBALCONFIG="$tool_dir/global.npmrc"
           npm install --ignore-scripts --no-audit --no-fund --package-lock=false --registry=https://registry.npmjs.org @viberaven/cli@1.7.8
           echo "VR_HELPER=$tool_dir/node_modules/@viberaven/cli/dist/github-ci.js" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
